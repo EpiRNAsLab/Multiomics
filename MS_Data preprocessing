@@ -1,0 +1,118 @@
+##################################################################################################################
+#####                                     PRE-PROCESSING Poly MeRIP-seq DATA                                       ####
+##################################################################################################################
+
+## By Mark Larance and Renhua Song
+
+# Raw data are available at the ProteomeXchange Consortium (http://proteomecentral.proteomexchange.org) via the PRIDE partner repository with the dataset identifier PXD017391.
+
+######## THIS PORTION IS RUN by Mark Larance ######
+MaxQuant version 1.6.3.4
+
+Peptide and protein level identification were set to a false discovery rate (FDR) of 1% using the human Uniprot database
+
+### THIS PORTION OF THIS SCRIPT IS RUN IN R USING A .R SCRIPT ###
+#############################################################################
+
+## LIBRARIES TO USE
+
+library(ggfortify)
+library(cluster)
+library(DESeq2)
+library(apeglm)
+library(limma)
+library(edgeR)
+
+# Input data-------------------------------------------
+
+## Raw intensity
+
+df <- read.delim("filtered_NP_EXP_log2FC_Pvalue_ND_M0_M1_v2.txt",comment="#")
+
+## Protein Imput LFQ intensity
+
+count=df[,c(58:66,73:75)]
+
+## Protein ID
+
+rownames(count)<-df$Protein.IDs
+
+## Sample gene_name
+
+colnames(count)<-c("mo1","mo2","mo3","M01","M02","M03","M11","M12","M13","M21","M22","M23")
+
+## Sample information
+sample=data.frame(
+  sample=c("mo1","mo2","mo3","M01","M02","M03","M11","M12","M13","M21","M22","M23"),
+  condition=c(rep("mo",3),rep("M0",3),rep("M1",3),rep("M2",3))
+)
+
+## Remove Proteins with NA value
+
+count1=count[complete.cases(count), ]
+
+## Create the DGEList data class
+
+y <- DGEList(counts = count1)
+
+## Normalization
+
+y <- calcNormFactors(y)
+
+## Clustr samples
+
+mds <- plotMDS(y,top = 100)
+
+## Note on factor levels
+
+toplot <- data.frame(PC1 = mds$x*100, PC2 = mds$y*100, condition = sample$condition)
+toplot$condition=factor(toplot$condition,levels = c("mo","M0","M1","M2"))
+
+## Principal Components Analysis plot
+
+ggplot(toplot, aes(PC1, PC2, color=condition)) +
+  geom_point(size=6,shape=0)+scale_color_manual(values = c("red","orange","blue","green"))+
+  xlab(paste0("PC1: ",11,"% variance")) +
+  ylab(paste0("PC2: ",70,"% variance")) +
+  theme_bw(base_size = 12)+theme(legend.position = "top")
+
+
+### create design
+
+condition=sample$condition
+design=model.matrix(~0+condition,data = y$samples)
+colnames(design) <- gsub("condition", "", colnames(design))
+
+## Estimate dispersions
+
+y <- estimateDisp(y, design, robust=TRUE)
+
+## test for DE Proteins
+
+fit <- glmQLFit(y, design, robust=TRUE)
+contr <- makeContrasts("M1 - mo", levels=design)
+qlf <- glmQLFTest(fit, contrast=contr)
+is.de <- decideTests(qlf, p.value=0.05,adjust.method = "BH",lfc = 2)
+summary(is.de)
+tt<-topTags(qlf,n=483)
+dep=as.data.frame(tt$table)
+res1=subset(dep,abs(dep$logFC)>1&dep$FDR<0.05)
+
+#################### Replicability of processed data ########
+
+## Define a function to draw a scatter plot for a pair of variables (samples) with density colors
+plotFun <- function(x,y){
+  dns <- densCols(x,y);
+  points(x,y, col="black", pch=".",cex=4,panel.first=grid());
+  abline(a=0, b=1, col="red")
+}
+
+## get the transformed data
+nc <- as.data.frame(cpm(y, normalized.lib.sizes=TRUE))
+
+count.table2=subset(nc,rownames(nc)%in%rownames(res1))[,1:3]
+colnames(count.table2)=factor(c("mo replicate1","mo replicate2","mo replicate3"),levels =c("mo replicate3","mo replicate2","mo replicate1") )
+## Plot the scatter plot for a few pairs of variables selected at random
+set.seed(123) # forces the random number generator to produce fixed results. Should generally not be used, except for the sake of demonstration with a particular selection.
+pairs(log2(count.table2[,sample(ncol(count.table2), 3)] + 1),
+      panel=plotFun)
