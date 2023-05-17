@@ -1,0 +1,165 @@
+##################################################################################################################
+#####                                     PRE-PROCESSING Poly hMeRIP-seq DATA                                       ####
+##################################################################################################################
+
+## By Renhua Song
+
+# Raw data are available at GEO, GSE213203
+
+
+####  THIS PORTION OF THE SCRIPT IS RUN IN HPC CLUSTER WITH A .PBS SCRIPT ####
+#############################################################################
+
+## Step 1: Quality check of raw data
+############ VERSIONS OF THIS SOFTWARE
+fastqc version 0.11.3
+python version 3.6.5
+
+fastqc *.fq.gz|multiqc *.zip -o qc_Riboseq
+
+
+## Step 2: Trimming adapters and low quality reads
+trimmomatic version 0.39
+java version jdk1.8.0_45
+
+java -jar trimmomatic-0.39.jar PE <s_1_1_sequence.txt.gz< <s_1_2_sequence.txt.gz> <lane1_forward_paired.fq.gz> <lane1_forward_unpaired.fq.gz> <lane1_reverse_paired.fq.gz> <lane1_reverse_unpaired.fq.gz> ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+
+## Step 3: Removing rRNA and tRNA reads
+bowtie2 version 2.2.5
+
+### download the rRNA and tRNA sequence from NCBI database
+
+### build index
+
+bowtie2-build <reference_in> <bt2-idx>
+
+### removing the mapped reads
+
+bowtie2 --very-sensitive-local  -x <bt2-idx> -1 <sample1_1_paired.fq.gz> -2 <sample1_2_paired.fq.gz> --un-conc-gz <sample1_filtered>
+
+## Step 4: Mapping files to reference genome
+
+Reference Human GRCh38:
+  source: https://ftp.ensembl.org/pub/release-86
+  Genes: Homo_sapiens.GRCh38.86.gtf
+
+########## VERSION OF THIS GENOME USED:
+STAR version 2.5.2a
+samtools version 1.6
+
+
+## Step 5: Mapping files to reference genome
+Reference Human GRCh38:
+  source: https://ftp.ensembl.org/pub/release-86
+  Genes: Homo_sapiens.GRCh38.86.gtf
+########## VERSION OF THIS GENOME USED:
+STAR version 2.5.2a
+samtools version 1.6
+
+STAR --runMode  <alignReads>  --runThreadN <N>  --genomeDir  <reference> --sjdbGTFfile   <transcripts.gtf> --readFilesCommand zcat --readFilesIn <sample1_1.fq.gz> <sample1_2.fq.gz> --outSAMtype <BAM>   <SortedByCoordinate>  --outWigType <bedGraph> --outFileNamePrefix <sample1>
+
+
+## Step 6: Selecting uniquely mapped reads
+samtools version 1.6
+
+samtools -q 255 <IP_sample1.bam> -o <IP_sample1.uniq.bam>
+
+## Step 7: Calling peaks
+gcc version 6.2.0
+python version 2.7.12
+macs2 version 2.2.7.1
+
+macs2 callpeak -t <IP_sample1.uniq.bam>  -c <INP_sample1.uniq.bam>  -f BAM -q 0.01 -n <mo-rep1> --outdir <macs2>
+
+## Step 8: Finding concensus peaks
+homer2 version 4.9.1
+
+mergePeaks -d <maximum distance to merge> <peak file1> <peak file2> [peak file3] ... > newPeakFile.txt
+
+### constructing peaks' saf file using awk
+
+## Step 9: Quantification of peak region reads: using featureCounts
+featureCounts Version 2.0.2
+
+featureCounts -T 5 -F SAF -a <peaks_saf.bed> -o <5hmC_counts.txt> <IP_sample1.uniq.bam IP_sample2.unique.bam...>
+
+### THIS PORTION OF THIS SCRIPT IS RUN IN R USING A .R SCRIPT ###
+#############################################################################
+
+## LIBRARIES TO USE
+library(ggfortify)
+library(cluster)
+library(DESeq2)
+library(apeglm)
+library(limma)
+library(edgeR)
+
+# Input data-------------------------------------------
+
+## Raw counts
+df <- read.delim("5hmC_counts.txt",comment="#")
+
+##Gene IP count matrix
+count=df[,c(7:8,11:12,15:16,19:20)] ##IP count
+
+## Gene name
+rownames(count)<-df$Geneid
+
+
+## Sample name
+colnames(count)<-c("mo1","mo2","mo3","M01","M02","M03","M11","M12","M13","M21","M22","M23")
+
+## Sample information
+sample=data.frame(
+  sample=c("mo1","mo2","mo3","M01","M02","M03","M11","M12","M13","M21","M22","M23"),
+  condition=c(rep("mo",3),rep("M0",3),rep("M1",3),rep("M2",3)))
+
+## SummarizedExperiment input
+dds<-DESeqDataSetFromMatrix(countData=count,colData=sample,design=~condition)
+
+## Pre-filtering
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+
+## Note on factor levels
+dds$condition <- factor(dds$condition, levels = c("mo","M0","M1","M2"))
+dds$condition <- relevel(dds$condition, ref = "mo")
+
+# Differential expression analysis-------------------------------------------
+dds <- DESeq(dds)
+res<-results(dds,name = "condition_M0_vs_mo")
+res$label<-with(res,ifelse(res$baseMean>10&abs(res$log2FoldChange)>1&res$padj<0.05,"sig","nosig"))
+ress=as.data.frame(res)
+res1=subset(ress,ress$label=="sig")
+
+# Exploring results-------------------------------------------
+
+vsd=((vst(dds,blind=F)))
+pcaData <- plotPCA(vsd, intgroup=c("condition"), returnData=TRUE,ntop=1000)
+pcaData$condition=factor(pcaData$condition,levels = c("mo","M0","M1","M2"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+## Principal Components Analysis plot
+ggplot(pcaData, aes(PC1, PC2, color=condition)) +
+  geom_point(size=6,shape=4)+scale_color_manual(values = c("red","orange","blue","green"))+
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+  theme_bw(base_size = 12)+theme(legend.position = "top")
+
+
+#################### Replicability of processed data ########
+## Define a function to draw a scatter plot for a pair of variables (samples) with density colors
+plotFun <- function(x,y){
+  dns <- densCols(x,y);
+  points(x,y, col="black", pch=".",cex=4,panel.first=grid());
+  abline(a=0, b=1, col="red")
+}
+
+vsd_count=as.data.frame(assay(vst(dds,blind=F)))
+count.table2=as.matrix(subset(vsd_count,rownames(vsd_count)%in%rownames(res1))[1:3])
+
+colnames(count.table2)=factor(c("mo replicate1","mo replicate2","mo replicate3"),levels =c("mo replicate3","mo replicate2","mo replicate1") )
+## Plot the scatter plot for a few pairs of variables selected at random
+set.seed(123) # forces the random number generator to produce fixed results. Should generally not be used, except for the sake of demonstration with a particular selection.
+pairs(log2(count.table2[,sample(ncol(count.table2), 3)] + 1),
+      panel=plotFun)
