@@ -89,7 +89,7 @@ percentVar <- round(100 * attr(pcaData, "percentVar"))
 
 ## Principal Components Analysis plot
 ggplot(pcaData, aes(PC1, PC2, color=condition)) +
-  geom_point(size=6,shape=5)+scale_color_manual(values = c("red","orange","blue","green"))+
+  geom_point(size=6,shape=1)+scale_color_manual(values = c("red","orange","blue","green"))+
   xlab(paste0("PC1: ",percentVar[1],"% variance")) +
   ylab(paste0("PC2: ",percentVar[2],"% variance")) +
   theme_bw(base_size = 12)+theme(legend.position = "top")
