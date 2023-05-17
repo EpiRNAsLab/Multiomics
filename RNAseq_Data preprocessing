@@ -30,7 +30,7 @@ STAR --runMode  <alignReads>  --runThreadN <N>  --genomeDir  <reference> --sjdbG
 ## Step 3: Quantification of reads: using featureCounts
 featureCounts Version 2.0.2
 
-featureCounts -p -t exon -g gene_name -a <transcripts.gtf>  -o <RNAseq_count.txt> <sample1.bam sample2.bam ... sample6.bam>
+featureCounts -p -t exon -g gene_name -a <transcripts.gtf>  -o <RNAseq_THP1.txt> <sample1.bam sample2.bam ... sample6.bam>
 
 ### THIS PORTION OF THIS SCRIPT IS RUN IN R USING A .R SCRIPT ###
 #############################################################################
