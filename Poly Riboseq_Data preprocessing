@@ -111,3 +111,81 @@ colnames(count.table2)=factor(c("mo replicate1","mo replicate2","mo replicate3")
 set.seed(123) # forces the random number generator to produce fixed results. Should generally not be used, except for the sake of demonstration with a particular selection.
 pairs(log2(count.table2[,sample(ncol(count.table2), 3)] + 1),
       panel=plotFun)
+      
+################### Gene Ontology analysis of processed data ###########
+## read the differential Translatomes between mo and M0 ##
+DET_M0vsmo=read.csv("DET_M0vsmo.csv")
+rownames(DET_M0vsmo)=DET_M0vsmo[,1]
+mo_M0_GO<- enrichGO(gene       = rownames(DET_M0vsmo),
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+## read the differential Translatomes between M0 and M1 ##
+DET_M1vsM0=read.csv("DET_M1vsM0.csv")
+rownames(DET_M1vsM0)=DET_M1vsM0[,1]
+M0_M1_GO<- enrichGO(gene       = rownames(DET_M1vsM0),
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+
+## read the differential Translatomes between M0 and M2 ##
+DET_M2vsM0=read.csv("DET_M2vsM0.csv")
+rownames(DET_M2vsM0)=DET_M2vsM0[,1]
+M0_M2_GO<- enrichGO(gene       = rownames(DET_M2vsM0),
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+
+### Convert to DataFrame #####
+GO_mo_M0_Riboseq=as.data.frame(mo_M0_GO)
+GO_M0_M1_Riboseq=as.data.frame(M0_M1_GO)
+GO_M0_M2_Riboseq=as.data.frame(M0_M2_GO)
+
+
+############## Enriched Gene Ontology plot ################
+library(tidyverse)
+library(dplyr)
+
+# merge all data frames together
+MergedDF_GO_mo_MO <- merge(GO_mo_M0_RNAseq, GO_mo_M0_Riboseq,by="ID",all=F) %>%
+  merge(GO_mo_M0_MS,by="ID",all=F)
+MergedDF_GO_M0_M1 <- merge(GO_M0_M1_RNAseq, GO_M0_M1_Riboseq,by="ID",all=F) %>%
+  merge(GO_M0_M1_MS,by="ID",all=F)
+MergedDF_GO_M0_M2 <- merge(GO_M0_M2_RNAseq, GO_M0_M2_Riboseq,by="ID",all=F) %>%
+  merge(GO_M0_M2_MS,by="ID",all=F)
+  
+g1=c("GO:0001558",    "GO:0001667",     "GO:0002250",    "GO:0006909",     "GO:0007015")
+g2=c("GO:0002250",     "GO:0007249",    "GO:0009615",     "GO:0019221",     "GO:0042742")
+MergedDF_GO_mo_MO1=subset(MergedDF_GO_mo_MO,MergedDF_GO_mo_MO$ID%in%g1)
+MergedDF_GO_M0_M11=subset(MergedDF_GO_M0_M1,MergedDF_GO_M0_M1$ID%in%g2)
+MergedDF_GO_mo_MO_DF=data.frame(
+  Description=toupper(MergedDF_GO_mo_MO1$Description.x),
+  RNA_sig=log10(1/MergedDF_GO_mo_MO1$pvalue.x),
+  Ribo_sig=log10(1/MergedDF_GO_mo_MO1$pvalue.y),
+  MS_sig=log10(1/MergedDF_GO_mo_MO1$pvalue)
+)
+MergedDF_GO_mo_MO_DF=MergedDF_GO_mo_MO_DF[order(MergedDF_GO_mo_MO_DF$RNA_sig,decreasing =T),]
+
+melt_DF=melt(MergedDF_GO_mo_MO_DF)
+melt_DF$type=sapply(strsplit(as.character(melt_DF$variable),"_"),'[',1)
+melt_DF$type=factor(melt_DF$type,levels = c("MS","Ribo","RNA"))
+
+####GO for M0 vs mo #######
+library(ggpattern)
+ggplot(melt_DF,aes(x=Description,y=value,fill=type))+geom_bar(position = position_dodge2(), stat="identity")+scale_fill_manual(values = c(RNA = "purple", Ribo = "orange",MS="red")) +
+  geom_hline(yintercept = log10(1/0.05),linetype="dashed")+theme()+theme_classic(base_size = 15)+coord_flip()
+
+
+
