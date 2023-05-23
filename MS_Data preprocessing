@@ -47,6 +47,84 @@ sample=data.frame(
   condition=c(rep("mo",3),rep("M0",3),rep("M1",3),rep("M2",3))
 )
 
+
+####Select Protiens containing at least 6 samples' value.
+
+count_raw=df[,c(37:39,22:24,28:30,34:36)] ##Raw LFQ intensity
+
+count_data<- filter(count, rowSums(is.na(count_raw)) < 6 ) 
+
+##### Quality Check : missing values #####
+
+figa=data.frame(Percentage=as.numeric(colSums(is.na(count_data))/nrow(count_data)),
+                Count=(colSums(is.na(count_data))
+                ))                
+figa$name=c("mo_r1","mo_r2","mo_r3","M0_r1","M0_r2","M0_r3","M1_r1","M1_r2","M1_r3","M2_r1","M2_r2","M2_r3")
+figa$name=factor(figa$name,levels = figa$name)
+figa$condition=c("mo","mo","mo","M0","M0","M0","M1","M1","M1","M2","M2","M2")
+figa$condition=factor(figa$condition,levels=c("mo","M0","M1","M2"))
+
+## plot the percentarge and count of missing value per sample 
+ggplot(data = figa, aes(name,Count, group=condition, fill=condition)) + 
+  geom_bar(stat="identity", position = "dodge")+    scale_fill_manual(values=c("red","orange","blue","green"))+
+  geom_text(aes(label = paste0(round(100*figa$Percentage,1),"%"), vjust = -0.2))+theme_classic(base_size = 15) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+##### Quality Check : overlapping protiens #####
+
+##Define a function drawing flower plot
+flower_plot2 <- function(sample, value, start, a, b,  
+                         ellipse_col = rgb(135, 206, 235, 150, max = 255), 
+                         circle_col = rgb(0, 162, 214, max = 255),
+                         circle_text_cex = 1, labels=labels) {
+  par( bty = "n", ann = F, xaxt = "n", yaxt = "n", mar = c(1,1,1,1))
+  plot(c(0,10),c(0,10),type="n")
+  n   <- length(sample)
+  deg <- 360 / n
+  res <- lapply(1:n, function(t){
+    ellipse_col <- ellipse_col[t]
+    plotrix::draw.ellipse(x = 5 + cos((start + deg * (t - 1)) * pi / 180), 
+                          y = 5 + sin((start + deg * (t - 1)) * pi / 180), 
+                          col = ellipse_col,
+                          border = ellipse_col,
+                          a = a, b = b, angle = deg * (t - 1))
+    text(x = 5 + 2.5 * cos((start + deg * (t - 1)) * pi / 180),
+         y = 5 + 2.5 * sin((start + deg * (t - 1)) * pi / 180),
+         value[t]
+    )
+    
+    if (deg * (t - 1) < 180 && deg * (t - 1) > 0 ) {
+      text(x = 5 + 3.3 * cos((start + deg * (t - 1)) * pi / 180),
+           y = 5 + 3.3 * sin((start + deg * (t - 1)) * pi / 180),
+           sample[t],
+           srt = deg * (t - 1) - start,
+           adj = 1,
+           cex = circle_text_cex
+      )
+      
+    } else {
+      text(x = 5 + 3.3 * cos((start + deg * (t - 1)) * pi / 180),
+           y = 5 + 3.3 * sin((start + deg * (t - 1)) * pi / 180),
+           sample[t],
+           srt = deg * (t - 1) + start,
+           adj = 0,
+           cex = circle_text_cex
+      )
+    }           
+  })
+  plotrix::draw.circle(x = 5, y = 5, r = 1.5, col = circle_col, border = circle_col )
+  
+  # tune location by x and y.
+  text(x = 4.7, y = 5, labels=labels)
+}
+
+## plot the overlapping protein numbers
+
+flower_plot2 (c("mo_r1", "mo_r2", "mo_r3", "M0_r1", "M0_r2", "M0_r3", 
+                "M1_r1", "M1_r2", "M1_r3", "M2_r1", "M2_r2", "M2_r3"),
+              c(as.numeric(nrow(count1)-colSums(is.na(count1)))), 90, 0.5, 2, labels="Core items: 3962",
+              ellipse_col = c(rep("red",3),rep("orange",3),rep("blue",3),rep("green",3)), 
+              circle_col = "white" )
+
 ## Remove Proteins with NA value
 
 count1=count[complete.cases(count), ]
