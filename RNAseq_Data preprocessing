@@ -111,3 +111,49 @@ colnames(count.table2)=factor(c("mo replicate1","mo replicate2","mo replicate3")
 set.seed(123) # forces the random number generator to produce fixed results. Should generally not be used, except for the sake of demonstration with a particular selection.
 pairs(log2(count.table2[,sample(ncol(count.table2), 3)] + 1),
       panel=plotFun)
+
+######### Gene Ontology enrichment of top 500 highly expressed genes #############
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+####### M0 vs mo ########
+
+## read the differential genes between mo and M0 ##
+DEG_M0vsmo=read.csv("DEG_M0vsmo.csv")
+rownames(DEG_M0vsmo)=DEG_M0vsmo[,1]
+mo_M0_GO<- enrichGO(gene       = rownames(DEG_M0vsmo),
+              OrgDb         = org.Hs.eg.db,
+              universe      = rownames(vsd_count), 
+              keyType       = 'SYMBOL',
+              ont           = "BP",
+              pAdjustMethod = "BH",
+              pvalueCutoff  = 0.05,
+              qvalueCutoff  = 0.05)
+## read the differential genes between M0 and M1 ##
+DEG_M1vsM0=read.csv("DEG_M1vsM0.csv")
+rownames(DEG_M1vsM0)=DEG_M1vsM0[,1]
+M0_M1_GO<- enrichGO(gene       = rownames(DEG_M1vsM0),
+                 OrgDb         = org.Hs.eg.db,
+                 universe      = rownames(vsd_count), 
+                 keyType       = 'SYMBOL',
+                 ont           = "BP",
+                 pAdjustMethod = "BH",
+                 pvalueCutoff  = 0.05,
+                 qvalueCutoff  = 0.05)
+
+## read the differential genes between M0 and M2 ##
+DEG_M2vsM0=read.csv("DEG_M2vsM0.csv")
+rownames(DEG_M2vsM0)=DEG_M2vsM0[,1]
+M0_M2_GO<- enrichGO(gene       = rownames(DEG_M2vsM0),
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+
+### Convert to DataFrame #####
+GO_mo_M0_RNAseq=as.data.frame(mo_M0_GO)
+GO_M0_M1_RNAseq=as.data.frame(M0_M1_GO)
+GO_M0_M2_RNAseq=as.data.frame(M0_M2_GO)
