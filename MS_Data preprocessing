@@ -194,3 +194,46 @@ colnames(count.table2)=factor(c("mo replicate1","mo replicate2","mo replicate3")
 set.seed(123) # forces the random number generator to produce fixed results. Should generally not be used, except for the sake of demonstration with a particular selection.
 pairs(log2(count.table2[,sample(ncol(count.table2), 3)] + 1),
       panel=plotFun)
+      
+#################### Gene Ontology analysis of processed data ########
+
+## read the differential Mass spec between mo and M0 ##
+MS_M0vsmo=read.csv("MS_M0vsmo.csv")
+rownames(MS_M0vsmo)=MS_M0vsmo[,1]
+mo_M0_GO<- enrichGO(gene       =MS_M0vsmo$Gene,
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 1,
+                    qvalueCutoff  = 1)
+## read the differential Mass spec between M0 and M1 ##
+MS_M1vsM0=read.csv("MS_M1vsM0.csv")
+rownames(MS_M1vsM0)=MS_M1vsM0[,1]
+M0_M1_GO<- enrichGO(gene       = MS_M1vsM0$Gene,
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 1,
+                    qvalueCutoff  = 1)
+
+## read the differential genes between M0 and M2 ##
+MS_M2vsM0=read.csv("MS_M2vsM0.csv")
+rownames(MS_M2vsM0)=MS_M2vsM0[,1]
+M0_M2_GO<- enrichGO(gene       = MS_M2vsM0$Gene,
+                    OrgDb         = org.Hs.eg.db,
+                    universe      = rownames(vsd_count), 
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 1,
+                    qvalueCutoff  = 1)
+
+### Convert to DataFrame #####
+GO_mo_M0_MS=as.data.frame(mo_M0_GO)
+GO_M0_M1_MS=as.data.frame(M0_M1_GO)
+GO_M0_M2_MS=as.data.frame(M0_M2_GO)
+
