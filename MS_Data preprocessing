@@ -71,6 +71,22 @@ ggplot(data = figa, aes(name,Count, group=condition, fill=condition)) +
   geom_bar(stat="identity", position = "dodge")+    scale_fill_manual(values=c("red","orange","blue","green"))+
   geom_text(aes(label = paste0(round(100*figa$Percentage,1),"%"), vjust = -0.2))+theme_classic(base_size = 15) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
+################## Quality Check : Impute value distribution ##########
+
+## read Imput LFQ intensity and log transfered 
+
+count=log10(df[,c(58:66,73:75)]+1)
+rownames(count)=df$Protein.IDs
+colnames(count)=c("mo_r1","mo_r2","mo_r3","M0_r1","M0_r2","M0_r3","M1_r1","M1_r2","M1_r3","M2_r1","M2_r2","M2_r3")
+count_melt=melt(count)
+count_melt$condition=sapply(strsplit(as.character(count_melt$variable),"_"),'[',1)
+count_melt$condition=factor(count_melt$condition,levels=c("mo","M0","M1","M2"))
+
+## plot the data distribution
+
+ggplot(count_melt, aes(x=factor(variable), y=value, fill=condition)) +ylab("log10(Impute Intensity Value)")+
+  geom_boxplot()+    scale_fill_manual(values=c("red","orange","blue","green"))+theme_classic(base_size = 15)+xlab("") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),legend.position = "NA")
+
 ##### Quality Check : overlapping protiens #####
 
 ##Define a function drawing flower plot
