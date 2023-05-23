@@ -22,6 +22,8 @@ library(DESeq2)
 library(apeglm)
 library(limma)
 library(edgeR)
+library(clusterProfiler)
+library(org.Hs.eg.db)
 
 # Input data-------------------------------------------
 
